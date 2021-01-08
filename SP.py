@@ -4,12 +4,14 @@ import time
 import threading
 import os
 import hashlib
-import OpenSSL
+import rsa
+import base64
+from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
-PORT = 63082    # Port to listen on (non-privileged ports are > 1023)
+PORT = 63092    # Port to listen on (non-privileged ports are > 1023)
 server_reference_path = "keys/"
 m=""
 
@@ -38,10 +40,38 @@ def create_certificate(key):
     cert.set_issuer(cert.get_subject())
     cert.get_subject().CN = "test"
     cert.sign(key,"sha256")
-    file1=open("certs/cert_s.txt",'wb')
+    file1=open("certs/cert_s",'wb')
     file1.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
     file1.close()
     return cert
+
+def get_certificate(certif_file):
+    file= open("certs/"+certif_file, "r")
+    certificate_str = file.read()
+    file.close()
+    certificate=crypto.load_certificate(crypto.FILETYPE_PEM,certificate_str)
+    return certificate
+
+def sign(message,key):
+    signature=crypto.sign(key,message,"sha256")
+    return signature
+
+def verifsign(certificate,signature,data):
+    verif=crypto.verify(certificate,signature,data,"sha256")
+    return verif
+
+def encrypt(certificat,message):
+    pub = crypto.dump_publickey(crypto.FILETYPE_PEM, certificat.get_pubkey())
+    pubkey = rsa.PublicKey.load_pkcs1_openssl_pem(pub)
+    data = rsa.encrypt(message.encode(), pubkey)
+    data = base64.b64encode(data)
+    return data
+
+def decrypt(key,message):
+    pri = crypto.dump_privatekey(crypto.FILETYPE_ASN1, key)
+    prikey = rsa.PrivateKey.load_pkcs1(pri, 'DER')
+    data = rsa.decrypt(base64.b64decode(message), prikey)
+    return data
 
 class server(object):
 
@@ -51,6 +81,7 @@ class server(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind((self.hostname, self.port))
         self.socket.listen()
+        print("Service provider ready")
         while True:
             clientsocket, (ip,port) = self.socket.accept()
             newthread = ClientThread(ip ,port , clientsocket,self)
@@ -73,22 +104,27 @@ class ClientThread(threading.Thread):
         self.clientsocket.close()
         print("Thread",threading.get_ident(),":connection from",self.ip,"ended\n")
 
-    def receive_file(self,m):
+    def receive_file2(self,m):
         size=self.clientsocket.recv(1024)
-        print(size)
         self.clientsocket.send("OK".encode())
         print("Thread",threading.get_ident(),":receiving file:",m)
         recv=self.clientsocket.recv(1024*1024)
         while (len(recv)!=int(size)):
             recv+=self.clientsocket.recv(1024*1024)
-            print(recv)
-            print(len(recv))
         file = open(server_reference_path+"m",'wb')
         file.write(recv)
         file.close()
         print("Thread",threading.get_ident(),":file received")
         #self.close()
         #return m
+
+    def receive_file(self):
+        #size=self.clientsocket.recv(1024)
+        #self.clientsocket.send("OK".encode())
+        #print("Thread",threading.get_ident(),":receiving file:",m)
+        recv=self.clientsocket.recv(1024*1024)
+        #self.close()
+        return recv
 
     def send_file(self,datas):
         print("Thread",threading.get_ident(),":sending file:",datas)
@@ -100,22 +136,35 @@ class ClientThread(threading.Thread):
 
         time.sleep(10**-3)
         print("Thread",threading.get_ident(),"started")
-        key=generate_keys() #Generation of the keys
-        cert=create_certificate(key) #Creattion of the certificate for public keys
-        print("Server ready") #SEVER IS NOW READY
-        data=self.receive_file(m)
-        result=open(server_reference_path+"m","r")
+        message=self.receive_file()
+        self.send_file("ok")
+        signature=self.receive_file()
+        certificate_o=get_certificate("cert_o")
+        decrypted_message=decrypt(key,message)
+        dec=str(decrypted_message)
+        print("the decrypted message is"+dec)
+        result=open(server_reference_path+"message_decrypted.txt","wb")
+        result.write(decrypted_message)
+        result.write(("\n"+str(signature)).encode())
+        #lines=result.readlines()
+        result.close()
+        result=open(server_reference_path+"message_decrypted.txt","r")
         lines=result.readlines()
         result.close()
-        str2hash=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()
-        hash=hashlib.md5(str2hash.encode()).hexdigest()
-        print(hash)
-        print("A DECRYPTER: "+lines[3])
-        res=decrypt_public_key(lines[3],"owner1_public_key")
-        if hash==res:
-            valid="true"
-        else :
-            valid="false"
-        self.send_file(valid)
+        print("vérification de la signature")
+        m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()
+        print("m is "+m)
+        #print("signature is "+lines[3])
+        res=verifsign(certificate_o,signature,m)
+        #res=decrypt_public_key(lines[3],"owner1_public_key")
+        #if hash==res:
+        #    valid="true"
+        #else :
+        #    valid="false"
 
+        self.send_file("sent")
+
+key=generate_keys() #Generation of the keys
+cert=create_certificate(key) #Creattion of the certificate for public keys
+print("Keys generated ready") #SEVER IS NOW READY
 server(HOST,PORT)

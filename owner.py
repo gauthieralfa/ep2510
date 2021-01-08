@@ -3,18 +3,19 @@
 import random
 import socket
 import base64
+import rsa
 import sys
 import threading
 import time
 import hashlib
 import os
-import openSSL
+from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 
-server_reference_path = "keys/"
+server_reference_path = "owner1/"
 HOST = '127.0.0.1'  # The server's hostname or IP address
-PORT = 63082     # The port used by the server
+PORT = 63092     # The port used by the server
 
 
 def generate_keys():
@@ -41,7 +42,7 @@ def create_certificate(key):
     cert.set_issuer(cert.get_subject())
     cert.get_subject().CN = "test"
     cert.sign(key,"sha256")
-    file1=open("certs/cert_o.txt",'wb')
+    file1=open("certs/cert_o",'wb')
     file1.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
     file1.close()
     return cert
@@ -51,11 +52,16 @@ def get_certificate(certif_file):
     certificate_str = file.read()
     file.close()
     certificate=crypto.load_certificate(crypto.FILETYPE_PEM,certificate_str)
+    #print("certificat is "+certificate_str)
     return certificate
 
 def sign(message,key):
     signature=crypto.sign(key,message,"sha256")
     return signature
+
+def verifsign(certificate,signature,data):
+    verif=crypto.verify(certificate,signature,data,"sha256")
+    return verif
 
 def encrypt(certificat,message):
     pub = crypto.dump_publickey(crypto.FILETYPE_PEM, certificat.get_pubkey())
@@ -64,47 +70,43 @@ def encrypt(certificat,message):
     data = base64.b64encode(data)
     return data
 
-def decrypt():
+def decrypt(key,message):
+    pri = crypto.dump_privatekey(crypto.FILETYPE_ASN1, key)
+    prikey = rsa.PrivateKey.load_pkcs1(pri, 'DER')
+    data0 = rsa.decrypt(base64.b64decode(message), prikey)
+    return data0
 
-    return data
-
-
-# Key Generation
-key = RSA.generate(1024)
-file1 = open(server_reference_path+'PrivateKeyOwner.pem', 'wb')
-file1.write(key.exportKey('PEM'))
-file1.close()
-pubkey=key.publickey()
-f = open(server_reference_path+'PublicKeyOwner.pem', "wb")
-f.write(pubkey.exportKey('PEM'))
-f.close()
-# END Key Generation
-
-def registration(ip, port, message):
+def registration(ip, port):
     key=generate_keys() #Generation of the keys
     cert=create_certificate(key) #Creattion of the certificate for public keys
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port)) #Connection with the Service Provider
     Name="owner1"
     Service="provider1"
-    RNG1=str(random.randrange(1000))
+    rng=random.randrange(1000)
+    RNG1=str(rng)
     m=Name+Service+RNG1
+    print("m is "+m)
     signature=sign(m,key)
-    message=m+signature
-    message_encrypted=encrypt(cert,message)
-    fichier = open(server_reference_path+"registration.txt", "a")
-    fichier.write(message)
-    fichier.close()
-    certificate=get_certificate("cert_s")
+    print("signature is "+str(signature))
+    message=Name+"\n"+Service+"\n"+RNG1
+    certificate_serviceprovider=get_certificate("cert_s")
+    message_encrypted=encrypt(certificate_serviceprovider,message)
 
-    lenght=os.path.getsize(server_reference_path+"registration.txt")
-    print(lenght)
-    sock.send(str(lenght).encode())
+    fichier = open(server_reference_path+"registration.txt", "a")
+    fichier.write(str(message_encrypted))
+    fichier.write("\n"+str(signature))
+    fichier.close()
+    #lenght=os.path.getsize(server_reference_path+"registration.txt")
+    #sock.send(str(lenght).encode())
+    #ACK=sock.recv(1024)
+    #with open(server_reference_path+"registration.txt", 'rb') as file_to_send:
+    #    for data in file_to_send:
+    #        sock.sendall(data)
+    sock.sendall(message_encrypted)
     ACK=sock.recv(1024)
-    with open(server_reference_path+"registration.txt", 'rb') as file_to_send:
-        for data in file_to_send:
-            sock.sendall(data)
-    print("O,S,N1,C_O sent")
+    sock.sendall(signature)
+    print("O,S,N1,Signature")
     result = sock.recv(1024)
     print("we have received")
     print (result)
@@ -113,7 +115,7 @@ def registration(ip, port, message):
 if __name__ == "__main__":
     thread_list = []
     client_thread = threading.Thread(
-        target=registration, args=(HOST, PORT, m))
+        target=registration, args=(HOST, PORT))
     thread_list.append(client_thread)
     client_thread.start()
 
