@@ -13,12 +13,35 @@ PORT = 63082    # Port to listen on (non-privileged ports are > 1023)
 server_reference_path = "keys/"
 m=""
 
-def decrypt_public_key(encoded_encrypted_msg, public_key):
-    f = open(server_reference_path+'PublicKeyOwner.pem', "rb")
-    key = RSA.importKey(f.read())
-    encryptor = PKCS1_OAEP.new(key)
-    decoded_decrypted_msg = encryptor.decrypt(encoded_encrypted_msg)
-    return decoded_decrypted_msg
+
+def generate_keys():
+    key=crypto.PKey()
+    key.generate_key(crypto.TYPE_RSA, 1024)
+    file1 = open("service_provider/priv_s.txt", 'wb')
+    file1.write(crypto.dump_privatekey(crypto.FILETYPE_PEM,key))
+    file1.close()
+    file2 = open("service_provider/pub_s.txt", 'wb')
+    file2.write(crypto.dump_publickey(crypto.FILETYPE_PEM,key))
+    file2.close()
+    return key
+
+def create_certificate(key):
+    cert=crypto.X509()
+    cert.set_pubkey(key)
+    cert.get_subject().ST = "Sweden"
+    cert.get_subject().L = "Stockholm"
+    cert.get_subject().O = "Service Provider"
+    cert.get_subject().OU = "SharingCar"
+    cert.set_serial_number(1000)
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(10*365*24*60*60)
+    cert.set_issuer(cert.get_subject())
+    cert.get_subject().CN = "test"
+    cert.sign(key,"sha256")
+    file1=open("certs/cert_s.txt",'wb')
+    file1.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+    file1.close()
+    return cert
 
 class server(object):
 
@@ -28,7 +51,6 @@ class server(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind((self.hostname, self.port))
         self.socket.listen()
-        print("Server ready")
         while True:
             clientsocket, (ip,port) = self.socket.accept()
             newthread = ClientThread(ip ,port , clientsocket,self)
@@ -78,6 +100,9 @@ class ClientThread(threading.Thread):
 
         time.sleep(10**-3)
         print("Thread",threading.get_ident(),"started")
+        key=generate_keys() #Generation of the keys
+        cert=create_certificate(key) #Creattion of the certificate for public keys
+        print("Server ready") #SEVER IS NOW READY
         data=self.receive_file(m)
         result=open(server_reference_path+"m","r")
         lines=result.readlines()
