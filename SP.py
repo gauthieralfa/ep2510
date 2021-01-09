@@ -3,6 +3,7 @@ import socket
 import time
 import threading
 import os
+import random
 import hashlib
 import rsa
 import base64
@@ -11,7 +12,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
-PORT = 63092    # Port to listen on (non-privileged ports are > 1023)
+PORT = 63093    # Port to listen on (non-privileged ports are > 1023)
 server_reference_path = "keys/"
 m=""
 
@@ -132,10 +133,13 @@ class ClientThread(threading.Thread):
         print("Thread",threading.get_ident(),":file sent")
         #self.close()
 
-    def run(self):
+    def send_object(self,datas):
+        print("Thread",threading.get_ident(),":sending object")
+        self.clientsocket.sendall(datas)
+        print("Thread",threading.get_ident(),":object sent")
+        #self.close()
 
-        time.sleep(10**-3)
-        print("Thread",threading.get_ident(),"started")
+    def registration(self):
         message=self.receive_file()
         self.send_file("ok")
         signature=self.receive_file()
@@ -161,8 +165,52 @@ class ClientThread(threading.Thread):
         #    valid="true"
         #else :
         #    valid="false"
+        Name="provider1"
+        Owner="owner1"
+        rng=random.randrange(1000)
+        RNG2=str(rng)
+        RNG1=lines[2].rstrip()
+        m=Name+Owner+RNG1+RNG2
+        print("m of signature is: "+m)
+        signature2=sign(m,key)
+        message=Name+"\n"+Owner+"\n"+RNG1+"\n"+RNG2
+        message_encrypted=encrypt(certificate_o,message)
+        self.send_object(message_encrypted)
+        ACK=self.receive_file()
+        self.send_object(signature2)
+        print("S,O,N1,N2,Signature")
+        ACK=self.receive_file()
+        print(str(ACK))
 
-        self.send_file("sent")
+        #Receives BookingInformation and IdCar
+        message=self.receive_file()
+        self.send_file("ok")
+        signature=self.receive_file()
+        decrypted_message=decrypt(key,message)
+        dec=str(decrypted_message)
+        print("the decrypted message is"+dec)
+        result=open(server_reference_path+"message_decrypted.txt","wb")
+        result.write(decrypted_message)
+        result.write(("\n"+str(signature)).encode())
+        result.close()
+        result=open(server_reference_path+"message_decrypted.txt","r")
+        lines=result.readlines()
+        result.close()
+        print("vérification de la signature")
+        m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()+lines[3].rstrip()
+        res=verifsign(certificate_o,signature,m)
+        BookingInformation=lines[2].rstrip()
+        IdCar=lines[3].rstrip()
+        print("Booking Information are : "+BookingInformation)
+        self.close()
+
+
+    def run(self):
+        time.sleep(10**-3)
+        print("Thread",threading.get_ident(),"started")
+        self.registration()
+
+
 
 key=generate_keys() #Generation of the keys
 cert=create_certificate(key) #Creattion of the certificate for public keys

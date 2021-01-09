@@ -15,7 +15,11 @@ from Crypto.Cipher import PKCS1_OAEP
 
 server_reference_path = "owner1/"
 HOST = '127.0.0.1'  # The server's hostname or IP address
-PORT = 63092     # The port used by the server
+PORT = 63093     # The port used by the server
+Name="owner1"
+Service="provider1"
+rng=random.randrange(1000)
+RNG1=str(rng)
 
 
 def generate_keys():
@@ -77,39 +81,83 @@ def decrypt(key,message):
     return data0
 
 def registration(ip, port):
+
+    # Generation of the keys
     key=generate_keys() #Generation of the keys
     cert=create_certificate(key) #Creattion of the certificate for public keys
+
+    ## Connection to the Service provider
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port)) #Connection with the Service Provider
-    Name="owner1"
-    Service="provider1"
-    rng=random.randrange(1000)
-    RNG1=str(rng)
+
+    ## Creation of the Signature of O,S,RNG1
     m=Name+Service+RNG1
     print("m is "+m)
     signature=sign(m,key)
     print("signature is "+str(signature))
+
+    ## Creation of the encrypted message O,S,RNG1
     message=Name+"\n"+Service+"\n"+RNG1
     certificate_serviceprovider=get_certificate("cert_s")
     message_encrypted=encrypt(certificate_serviceprovider,message)
-
-    fichier = open(server_reference_path+"registration.txt", "a")
-    fichier.write(str(message_encrypted))
-    fichier.write("\n"+str(signature))
-    fichier.close()
+    #fichier = open(server_reference_path+"registration.txt", "a")
+    #fichier.write(str(message_encrypted))
+    #fichier.write("\n"+str(signature))
+    #fichier.close()
     #lenght=os.path.getsize(server_reference_path+"registration.txt")
     #sock.send(str(lenght).encode())
     #ACK=sock.recv(1024)
     #with open(server_reference_path+"registration.txt", 'rb') as file_to_send:
     #    for data in file_to_send:
     #        sock.sendall(data)
+
+    ## Send of the encrypted message and signature
     sock.sendall(message_encrypted)
     ACK=sock.recv(1024)
     sock.sendall(signature)
     print("O,S,N1,Signature")
-    result = sock.recv(1024)
-    print("we have received")
-    print (result)
+
+    ## Receives the response
+    message=sock.recv(1024)
+    sock.sendall("ok".encode())
+    signature2=sock.recv(1024)
+
+    ## Decrypt and stock in a file text
+    decrypted_message=decrypt(key,message)
+    dec=str(decrypted_message)
+    result=open(server_reference_path+"message_decrypted.txt","wb")
+    result.write(decrypted_message)
+    result.write(("\n"+str(signature)).encode())
+    result.close()
+
+    #Read the file text
+    result=open(server_reference_path+"message_decrypted.txt","r")
+    lines=result.readlines()
+    result.close()
+
+    #Check the signature with the message decrypted
+    print("vérification de la signature")
+    m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()+lines[3].rstrip()
+    print("m of signature is: "+m)
+    res=verifsign(certificate_serviceprovider,signature2,m)
+    sock.sendall("OK".encode())
+
+    #Check if RNG1 is still the right Nonce
+    if RNG1==lines[2].rstrip():
+        print("Success")
+    else:
+        print("FAIL")
+
+    # Send of the Booking Information, and Id_Car
+    BookingInformation="price=100.time=2h.location=KTH"
+    IdCar="206"
+    signature=sign(Name+Service+BookingInformation+IdCar,key)
+    message=Name+"\n"+Service+"\n"+BookingInformation+"\n"+IdCar
+    certificate_serviceprovider=get_certificate("cert_s")
+    message_encrypted=encrypt(certificate_serviceprovider,message)
+    sock.sendall(message_encrypted)
+    ACK=sock.recv(1024)
+    sock.sendall(signature)
     sock.close()
 
 if __name__ == "__main__":
