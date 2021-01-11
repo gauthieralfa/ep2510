@@ -12,6 +12,7 @@ import os
 from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
+from cryptography.fernet import Fernet
 
 server_reference_path = "customer1/"
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -22,9 +23,20 @@ rng=random.randrange(1000)
 RNG3=str(rng)
 
 
+def get_keys():
+    file1 = open("customer1/priv_o.txt", 'r')
+    priv=file1.read()
+    file1.close()
+    file2 = open("customer1/pub_s.txt", 'r')
+    pub=file2.read()
+    file2.close()
+    key=crypto.load_privatekey(crypto.FILETYPE_PEM, priv)
+    return key
+
+
 def generate_keys():
     key=crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA, 1024)
+    key.generate_key(crypto.TYPE_RSA, 2048)
     file1 = open("customer1/priv_o.txt", 'wb')
     file1.write(crypto.dump_privatekey(crypto.FILETYPE_PEM,key))
     file1.close()
@@ -77,8 +89,8 @@ def encrypt(certificat,message):
 def decrypt(key,message):
     pri = crypto.dump_privatekey(crypto.FILETYPE_ASN1, key)
     prikey = rsa.PrivateKey.load_pkcs1(pri, 'DER')
-    data0 = rsa.decrypt(base64.b64decode(message), prikey)
-    return data0
+    data = rsa.decrypt(base64.b64decode(message), prikey)
+    return data
 
 def reservation(ip, port):
     # Generation of the keys
@@ -148,10 +160,58 @@ def reservation(ip, port):
     sock.sendall(signature)
     sock.close()
 
+
+
+def recuperation(ip, port):
+    key=get_keys()
+    ## Connection to the Service provider
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((ip, port)) #Connection with the Service Provider
+    sock.send("recuperation".encode())
+    ACK=sock.recv(1024)
+    sock.sendall("ok".encode())
+    message_encrypted=sock.recv(1024)
+    decrypted_message=decrypt(key,message_encrypted)
+    #dec=str(decrypted_message)
+    result=open(server_reference_path+"digitalkey.txt","wb")
+    result.write(decrypted_message)
+    result.close()
+
+
+def open_the_car():
+    sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock2.connect(('127.0.0.1',63094))
+    sock2.send("open".encode())
+    ACK=sock2.recv(1024)
+    result=open(server_reference_path+"digitalkey.txt","r")
+    lines=result.readlines()
+    result.close()
+    message=lines[0]+lines[1].rstrip()
+    sock2.send(message.encode())
+    chall=sock2.recv(1024)
+    result=open(server_reference_path+"digitalkey.txt","rb")
+    lines=result.readlines()
+    result.close()
+    session_key=lines[2]
+    f=Fernet(session_key)
+    resp=f.encrypt(chall)
+    sock2.send(resp)
+
+
+
+
 if __name__ == "__main__":
     thread_list = []
-    client_thread = threading.Thread(
-        target=reservation, args=(HOST, PORT))
+    inp = input("Enter Text: ")
+    if inp=="reservation":
+        client_thread = threading.Thread(
+            target=reservation, args=(HOST, PORT))
+    elif inp=="recuperation":
+        client_thread = threading.Thread(
+            target=recuperation, args=(HOST, PORT))
+    else:
+        client_thread = threading.Thread(
+            target=open_the_car)
     thread_list.append(client_thread)
     client_thread.start()
 

@@ -11,13 +11,15 @@ from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
 PORT = 63094    # Port to listen on (non-privileged ports are > 1023)
 server_reference_path = "car1/"
 key = Fernet.generate_key()
-masterkey=Fernet.generate_key()
-print(masterkey)
+
+masterkey = os.urandom(32)
 file=open(server_reference_path+"keycar1.txt",'wb')
 file.write(key)
 file.close()
@@ -149,9 +151,7 @@ class ClientThread(threading.Thread):
         print("Thread",threading.get_ident(),":object sent")
         #self.close()
 
-    def run(self):
-        time.sleep(10**-3)
-        print("Thread",threading.get_ident(),"started")
+    def session_key(self):
         MAC=self.receive_file()
         self.send_file("OK ?")
         key_file=open("car1/keycar1.txt",'r')
@@ -164,16 +164,72 @@ class ClientThread(threading.Thread):
         session_key=MAC_received.splitlines()[0].decode()
         print("session key is :"+session_key)
 
-
         str2hash=session_key+IdCar
-        print(str2hash)
-        Masterkey=masterkey.decode()
-        masterkey2=Fernet(Masterkey)
-        str2hash_encrypted=masterkey2.encrypt(str2hash.encode())
-        print("WLLH: "+str(str2hash_encrypted))
-        print("stp encry : "+Masterkey)
+        print(str(str2hash.encode()))
+        cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
+        encryptor = cipher.encryptor()
+        str2hash_encrypted = encryptor.update(str2hash.encode())
         MAC2=hashlib.md5((str2hash_encrypted)).hexdigest()
         print("MAC2 is: "+MAC2)
+        if MAC2==MAC:
+            print("MAC OK, Session key accepted")
+        else :
+            print("MAC NOK, Session Keu refused. connection closed")
+        result=open(server_reference_path+"sessionkey.txt","wt")
+        result.write(session_key)
+        result.close()
+
+    def open_the_car(self):
+        message=self.receive_file()
+        result=open(server_reference_path+"digitalkey.txt","wb")
+        result.write(message)
+        result.close()
+        result=open(server_reference_path+"digitalkey.txt","rb")
+        message=result.readlines()
+        result.close()
+        f = Fernet(key)
+        print("ACCESS token is: "+str(message[0].rstrip()))
+        res=f.decrypt(message[0].rstrip())
+        print("res is: "+str(res))
+        MAC=message[1].decode()
+
+        result=open(server_reference_path+"sessionkey.txt","r")
+        session_key=result.read()
+        str2hash=session_key+IdCar
+        print(str(str2hash.encode()))
+        cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
+        encryptor = cipher.encryptor()
+        str2hash_encrypted = encryptor.update(str2hash.encode())
+        MAC2=hashlib.md5((str2hash_encrypted)).hexdigest()
+        print("MAC2 is: "+MAC2)
+        if MAC2==MAC:
+            print("MAC OK, Session key accepted")
+        else :
+            print("MAC NOK, Session Keu refused. connection closed")
+
+
+        #CHALLENGE RESPONSE PROTOCOL
+        self.send_file("150")
+        resp=self.receive_file()
+        f=Fernet(session_key)
+        resp_decrypted=f.decrypt(resp)
+        print(resp_decrypted)
+        if resp_decrypted.decode()=="150":
+            print("CAR OPEN !!!")
+        else:
+            print("CAR NOT OPEN")
+
+
+    def run(self):
+        time.sleep(10**-3)
+        print("Thread",threading.get_ident(),"started")
+        step=self.receive_file()
+        self.send_file("OK")
+        if step=="session_key".encode():
+            self.session_key()
+        elif step=="open".encode():
+            self.open_the_car()
+
 
 
  #SEVER IS NOW READY

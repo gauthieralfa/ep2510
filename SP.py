@@ -20,7 +20,7 @@ server_reference_path = "keys/"
 
 def generate_keys():
     key=crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA, 1024)
+    key.generate_key(crypto.TYPE_RSA, 2048)
     file1 = open("service_provider/priv_s.txt", 'wb')
     file1.write(crypto.dump_privatekey(crypto.FILETYPE_PEM,key))
     file1.close()
@@ -290,8 +290,10 @@ class ClientThread(threading.Thread):
         file.close()
         file=open("service_provider/"+lines[0].rstrip(),'wt')
         file.write(IdCar)
-        file.write("\n"+str(access_token))
-        file.write("\n"+str(session_key))
+        file.close()
+        file=open("service_provider/"+lines[0].rstrip(),'ab')
+        file.write(("\n".encode()+access_token))
+        file.write(("\n".encode()+session_key))
         file.close()
         self.close()
 
@@ -323,6 +325,8 @@ class ClientThread(threading.Thread):
         #Send To the car
         sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock2.connect(('127.0.0.1',63094))
+        sock2.send("session_key".encode())
+        ACK=sock2.recv(1024)
         key_file=open("car1/keycar1.txt",'r')
         key_car=key_file.read()
         key_file.close()
@@ -332,6 +336,21 @@ class ClientThread(threading.Thread):
         sock2.send(message_encrypted)
         ack=sock2.recv(1024)
         print("Recu ?"+ack.decode())
+
+
+    def send_to_customer(self):
+        message=self.receive_file()
+        certificate_c=get_certificate("cert_c")
+        file=open("service_provider/customer1",'r')
+        lines=file.readlines()
+        session_key=lines[2].rstrip()
+        access_token=lines[1].rstrip()
+        MAC=lines[3]
+        print("Access token is: "+access_token)
+        message=access_token+"\n"+MAC+"\n"+session_key
+        encrypted_message=encrypt(certificate_c,message)
+        self.send_object(encrypted_message)
+
 
 
 
@@ -347,6 +366,8 @@ class ClientThread(threading.Thread):
             print(session_key)
         elif step=="session_key".encode():
             self.send_session_key()
+        elif step=="recuperation".encode():
+            self.send_to_customer()
 
 
 

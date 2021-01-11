@@ -13,6 +13,8 @@ from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 
 server_reference_path = "owner1/"
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -25,7 +27,7 @@ RNG1=str(rng)
 
 def generate_keys():
     key=crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA, 1024)
+    key.generate_key(crypto.TYPE_RSA, 2048)
     file1 = open("owner1/priv_o.txt", 'wb')
     file1.write(crypto.dump_privatekey(crypto.FILETYPE_PEM,key))
     file1.close()
@@ -209,14 +211,14 @@ def receives_session_key(ip,port):
 
     #Creation of the MAC
     str2hash=session_key+IdCar
-    print("str2hash: "+str2hash)
-    file=open("car1/masterkeycar1.txt",'r')
+    print("str2hash: "+str(str2hash.encode()))
+    file=open("car1/masterkeycar1.txt",'rb')
     masterkey=file.read()
-    file.close()
-    masterkey2=Fernet(masterkey)
-    print("stp encry : "+masterkey)
-    str2hash_encrypted=masterkey2.encrypt(str2hash.encode())
-    print("WLLH: "+str(str2hash_encrypted))
+
+    cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
+    encryptor = cipher.encryptor()
+    str2hash_encrypted = encryptor.update(str2hash.encode())
+
     MAC=hashlib.md5((str2hash_encrypted)).hexdigest()
     print("MAC is: "+MAC)
 
