@@ -12,6 +12,7 @@ import os
 from OpenSSL import crypto,SSL
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
+from cryptography.fernet import Fernet
 
 server_reference_path = "owner1/"
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -31,6 +32,16 @@ def generate_keys():
     file2 = open("owner1/pub_s.txt", 'wb')
     file2.write(crypto.dump_publickey(crypto.FILETYPE_PEM,key))
     file2.close()
+    return key
+
+def get_keys():
+    file1 = open("owner1/priv_o.txt", 'r')
+    priv=file1.read()
+    file1.close()
+    file2 = open("owner1/pub_s.txt", 'r')
+    pub=file2.read()
+    file2.close()
+    key=crypto.load_privatekey(crypto.FILETYPE_PEM, priv)
     return key
 
 def create_certificate(key):
@@ -89,6 +100,8 @@ def registration(ip, port):
     ## Connection to the Service provider
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port)) #Connection with the Service Provider
+    sock.send("registration".encode())
+    ACK=sock.recv(1024)
 
     ## Creation of the Signature of O,S,RNG1
     m=Name+Service+RNG1
@@ -143,7 +156,7 @@ def registration(ip, port):
     sock.sendall("OK".encode())
 
     #Check if RNG1 is still the right Nonce
-    if RNG1==lines[2].rstrip():
+    if RNG1==lines[3].rstrip():
         print("Success")
     else:
         print("FAIL")
@@ -160,10 +173,68 @@ def registration(ip, port):
     sock.sendall(signature)
     sock.close()
 
+def receives_session_key(ip,port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((ip, port)) #Connection with the Service Provider
+    sock.send("session_key".encode())
+    ACK=sock.recv(1024)
+    sock.send(Name.encode())
+
+    message=sock.recv(1024)
+    sock.sendall("ok".encode())
+    signature=sock.recv(1024)
+
+    key=get_keys()
+    decrypted_message=decrypt(key,message)
+    dec=str(decrypted_message)
+    result=open(server_reference_path+"session_key_decrypted.txt","wb")
+    result.write(decrypted_message)
+    result.write(("\n"+str(signature)).encode())
+    result.close()
+
+    #Read the file text
+    result=open(server_reference_path+"session_key_decrypted.txt","r")
+    lines=result.readlines()
+    result.close()
+
+    #Check the signature with the message decrypted
+    certificate_serviceprovider=get_certificate("cert_s")
+    print("vérification de la signature")
+    m=lines[0].rstrip()+lines[1].rstrip()
+    print("m of signature is: "+m)
+    res=verifsign(certificate_serviceprovider,signature,m)
+    session_key=lines[0].rstrip()
+    print("session key is: "+session_key)
+    IdCar=lines[1].rstrip()
+
+    #Creation of the MAC
+    str2hash=session_key+IdCar
+    print("str2hash: "+str2hash)
+    file=open("car1/masterkeycar1.txt",'r')
+    masterkey=file.read()
+    file.close()
+    masterkey2=Fernet(masterkey)
+    print("stp encry : "+masterkey)
+    str2hash_encrypted=masterkey2.encrypt(str2hash.encode())
+    print("WLLH: "+str(str2hash_encrypted))
+    MAC=hashlib.md5((str2hash_encrypted)).hexdigest()
+    print("MAC is: "+MAC)
+
+    #Send to the SP
+    MAC_encrypted=encrypt(certificate_serviceprovider,MAC)
+    sock.sendall(MAC_encrypted)
+    sock.close()
+
+
 if __name__ == "__main__":
     thread_list = []
-    client_thread = threading.Thread(
-        target=registration, args=(HOST, PORT))
+    inp = input("Enter Text: ")
+    if inp=="registration":
+        client_thread = threading.Thread(
+            target=registration, args=(HOST, PORT))
+    else :
+        client_thread = threading.Thread(
+            target=receives_session_key, args=(HOST, PORT))
     thread_list.append(client_thread)
     client_thread.start()
 
