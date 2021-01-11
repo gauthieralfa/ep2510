@@ -106,7 +106,7 @@ class ClientThread(threading.Thread):
         self.clientsocket.close()
         print("Thread",threading.get_ident(),":connection from",self.ip,"ended\n")
 
-    def receive_file2(self,m):
+    def receive2(self,m):
         size=self.clientsocket.recv(1024)
         self.clientsocket.send("OK".encode())
         print("Thread",threading.get_ident(),":receiving file:",m)
@@ -120,15 +120,12 @@ class ClientThread(threading.Thread):
         #self.close()
         #return m
 
-    def receive_file(self):
-        #size=self.clientsocket.recv(1024)
-        #self.clientsocket.send("OK".encode())
-        #print("Thread",threading.get_ident(),":receiving file:",m)
+    def receive(self):
         recv=self.clientsocket.recv(1024*1024)
-        #self.close()
+
         return recv
 
-    def send_file(self,datas):
+    def send_text(self,datas):
         print("Thread",threading.get_ident(),":sending file:",datas)
         self.clientsocket.send(datas.encode())
         print("Thread",threading.get_ident(),":file sent")
@@ -141,9 +138,9 @@ class ClientThread(threading.Thread):
         #self.close()
 
     def registration(self):
-        message=self.receive_file()
-        self.send_file("ok")
-        signature=self.receive_file()
+        message=self.receive()
+        self.send_text("ok")
+        signature=self.receive()
         certificate_o=get_certificate("cert_o")
         decrypted_message=decrypt(key,message)
         dec=str(decrypted_message)
@@ -177,16 +174,16 @@ class ClientThread(threading.Thread):
         message=Name+"\n"+Owner+"\n"+RNG2+"\n"+RNG1
         message_encrypted=encrypt(certificate_o,message)
         self.send_object(message_encrypted)
-        ACK=self.receive_file()
+        ACK=self.receive()
         self.send_object(signature2)
         print("S,O,N1,N2,Signature")
-        ACK=self.receive_file()
+        ACK=self.receive()
         print(str(ACK))
 
         #Receives BookingInformation and IdCar
-        message=self.receive_file()
-        self.send_file("ok")
-        signature=self.receive_file()
+        message=self.receive()
+        self.send_text("ok")
+        signature=self.receive()
         decrypted_message=decrypt(key,message)
         dec=str(decrypted_message)
         print("the decrypted message is"+dec)
@@ -203,7 +200,7 @@ class ClientThread(threading.Thread):
         BookingInformation=lines[2].rstrip()
         IdCar=lines[3].rstrip()
         print("Booking Information are : "+BookingInformation)
-        message=self.receive_file()
+        message=self.receive()
         time.sleep(5)
         print((message))
         return certificate_o
@@ -211,9 +208,9 @@ class ClientThread(threading.Thread):
 
     def reservation(self):
         global session_key
-        message=self.receive_file()
-        self.send_file("ok")
-        signature=self.receive_file()
+        message=self.receive()
+        self.send_text("ok")
+        signature=self.receive()
         certificate_c=get_certificate("cert_c")
         decrypted_message=decrypt(key,message)
         dec=str(decrypted_message)
@@ -247,16 +244,16 @@ class ClientThread(threading.Thread):
         message=Name+"\n"+Customer+"\n"+RNG4+"\n"+RNG3
         message_encrypted=encrypt(certificate_c,message)
         self.send_object(message_encrypted)
-        ACK=self.receive_file()
+        ACK=self.receive()
         self.send_object(signature2)
         print("S,C,N4,N3,Signature")
-        ACK=self.receive_file()
+        ACK=self.receive()
         print(str(ACK))
 
         #Receives BookingInformation and IdCar
-        message=self.receive_file()
-        self.send_file("ok")
-        signature=self.receive_file()
+        message=self.receive()
+        self.send_text("ok")
+        signature=self.receive()
         decrypted_message=decrypt(key,message)
         dec=str(decrypted_message)
         print("the decrypted message is"+dec)
@@ -298,7 +295,7 @@ class ClientThread(threading.Thread):
         self.close()
 
     def send_session_key(self):
-        name_owner=self.receive_file()
+        name_owner=self.receive()
         file=open("service_provider/customer1",'r')
         lines=file.readlines()
         session_key=lines[2].rstrip()
@@ -309,12 +306,12 @@ class ClientThread(threading.Thread):
         message=session_key+"\n"+IdCar
         message_encrypted=encrypt(certificate_o,message)
         self.send_object(message_encrypted)
-        ACK=self.receive_file()
+        ACK=self.receive()
         self.send_object(signature)
         print("SESSION KEY IS "+session_key)
 
         #Receives MAC
-        MAC_encrypted=self.receive_file()
+        MAC_encrypted=self.receive()
         MAC=decrypt(key,MAC_encrypted).decode()
         print("MAC is: "+MAC)
         file=open("service_provider/customer1",'a')
@@ -339,7 +336,7 @@ class ClientThread(threading.Thread):
 
 
     def send_to_customer(self):
-        message=self.receive_file()
+        message=self.receive()
         certificate_c=get_certificate("cert_c")
         file=open("service_provider/customer1",'r')
         lines=file.readlines()
@@ -357,8 +354,8 @@ class ClientThread(threading.Thread):
     def run(self):
         time.sleep(10**-3)
         print("Thread",threading.get_ident(),"started")
-        step=self.receive_file()
-        self.send_file("OK")
+        step=self.receive()
+        self.send_text("OK")
         if step=="registration".encode():
             self.registration()
         elif step=="reservation".encode():

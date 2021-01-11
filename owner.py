@@ -219,7 +219,7 @@ def receives_session_key(ip,port):
     encryptor = cipher.encryptor()
     str2hash_encrypted = encryptor.update(str2hash.encode())
 
-    MAC=hashlib.md5((str2hash_encrypted)).hexdigest()
+    MAC=hashlib.sha256((str2hash_encrypted)).hexdigest()
     print("MAC is: "+MAC)
 
     #Send to the SP

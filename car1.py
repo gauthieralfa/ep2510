@@ -117,7 +117,7 @@ class ClientThread(threading.Thread):
         self.clientsocket.close()
         print("Thread",threading.get_ident(),":connection from",self.ip,"ended\n")
 
-    def receive_file2(self,m):
+    def receive2(self,m):
         size=self.clientsocket.recv(1024)
         self.clientsocket.send("OK".encode())
         print("Thread",threading.get_ident(),":receiving file:",m)
@@ -131,29 +131,24 @@ class ClientThread(threading.Thread):
         #self.close()
         #return m
 
-    def receive_file(self):
-        #size=self.clientsocket.recv(1024)
-        #self.clientsocket.send("OK".encode())
+    def receive(self):
         recv=self.clientsocket.recv(1024)
         print("Thread",threading.get_ident(),":receiving file:",recv.decode())
-        #self.close()
         return recv
 
-    def send_file(self,datas):
+    def send_text(self,datas):
         print("Thread",threading.get_ident(),":sending file:",datas)
         self.clientsocket.send(datas.encode())
         print("Thread",threading.get_ident(),":file sent")
-        #self.close()
 
     def send_object(self,datas):
         print("Thread",threading.get_ident(),":sending object")
         self.clientsocket.sendall(datas)
         print("Thread",threading.get_ident(),":object sent")
-        #self.close()
 
     def session_key(self):
-        MAC=self.receive_file()
-        self.send_file("OK ?")
+        MAC=self.receive()
+        self.send_text("OK ?")
         key_file=open("car1/keycar1.txt",'r')
         key_car=key_file.read()
         key_file.close()
@@ -169,7 +164,7 @@ class ClientThread(threading.Thread):
         cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
         encryptor = cipher.encryptor()
         str2hash_encrypted = encryptor.update(str2hash.encode())
-        MAC2=hashlib.md5((str2hash_encrypted)).hexdigest()
+        MAC2=hashlib.sha256((str2hash_encrypted)).hexdigest()
         print("MAC2 is: "+MAC2)
         if MAC2==MAC:
             print("MAC OK, Session key accepted")
@@ -180,7 +175,7 @@ class ClientThread(threading.Thread):
         result.close()
 
     def open_the_car(self):
-        message=self.receive_file()
+        message=self.receive()
         result=open(server_reference_path+"digitalkey.txt","wb")
         result.write(message)
         result.close()
@@ -200,7 +195,7 @@ class ClientThread(threading.Thread):
         cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
         encryptor = cipher.encryptor()
         str2hash_encrypted = encryptor.update(str2hash.encode())
-        MAC2=hashlib.md5((str2hash_encrypted)).hexdigest()
+        MAC2=hashlib.sha256((str2hash_encrypted)).hexdigest()
         print("MAC2 is: "+MAC2)
         if MAC2==MAC:
             print("MAC OK, Session key accepted")
@@ -209,8 +204,8 @@ class ClientThread(threading.Thread):
 
 
         #CHALLENGE RESPONSE PROTOCOL
-        self.send_file("150")
-        resp=self.receive_file()
+        self.send_text("150")
+        resp=self.receive()
         f=Fernet(session_key)
         resp_decrypted=f.decrypt(resp)
         print(resp_decrypted)
@@ -223,8 +218,8 @@ class ClientThread(threading.Thread):
     def run(self):
         time.sleep(10**-3)
         print("Thread",threading.get_ident(),"started")
-        step=self.receive_file()
-        self.send_file("OK")
+        step=self.receive()
+        self.send_text("OK")
         if step=="session_key".encode():
             self.session_key()
         elif step=="open".encode():
