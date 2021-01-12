@@ -3,7 +3,14 @@
 ### Step 1 : Registration 
 
 Launch the server ServiceProvider.py and car1.py on 2 different terminals with : 
-python3 ServiceProvider.py and python3 car1.py
+
+```sh
+python3 ServiceProvider.py
+```
+and 
+```sh
+python3 car1.py
+```
 After that, on a new terminal, launch the client owner.py with : 
 ```sh
 python3 owner.py
