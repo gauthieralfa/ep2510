@@ -147,16 +147,17 @@ class ClientThread(threading.Thread):
         print("Thread",threading.get_ident(),":object sent")
 
     def session_key(self):
-        MAC=self.receive()
+        o_check=self.receive()
+        print("Session_key and o_check encrypted by keycar received from the Service Provider")
         self.send_text("OK ?")
         key_file=open("car1/keycar1.txt",'r')
         key_car=key_file.read()
         key_file.close()
         f = Fernet(key_car)
-        MAC_received=f.decrypt(MAC)
-        MAC=MAC_received.decode().splitlines()[1]
-        print("mac is: "+MAC)
-        session_key=MAC_received.splitlines()[0].decode()
+        o_check_received=f.decrypt(o_check)
+        o_check=o_check_received.decode().splitlines()[1]
+        print("o_check is: "+o_check)
+        session_key=o_check_received.splitlines()[0].decode()
         print("session key is :"+session_key)
 
         str2hash=session_key+IdCar
@@ -164,12 +165,12 @@ class ClientThread(threading.Thread):
         cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
         encryptor = cipher.encryptor()
         str2hash_encrypted = encryptor.update(str2hash.encode())
-        MAC2=hashlib.sha256((str2hash_encrypted)).hexdigest()
-        print("MAC2 is: "+MAC2)
-        if MAC2==MAC:
-            print("MAC OK, Session key accepted")
+        o_check2=hashlib.sha256((str2hash_encrypted)).hexdigest()
+        print("o_check2 calculated (session_key+IdCar) enc by masterkey is: "+o_check2)
+        if o_check2==o_check:
+            print("o_check match OK, Session key accepted")
         else :
-            print("MAC NOK, Session Keu refused. connection closed")
+            print("o_check match NOK, Session Keu refused. connection closed")
         result=open(server_reference_path+"sessionkey.txt","wt")
         result.write(session_key)
         result.close()
@@ -185,8 +186,8 @@ class ClientThread(threading.Thread):
         f = Fernet(key)
         print("ACCESS token is: "+str(message[0].rstrip()))
         res=f.decrypt(message[0].rstrip())
-        print("res is: "+str(res))
-        MAC=message[1].decode()
+        print("Access token decrypted is: "+str(res))
+        o_check=message[1].decode()
 
         result=open(server_reference_path+"sessionkey.txt","r")
         session_key=result.read()
@@ -195,20 +196,22 @@ class ClientThread(threading.Thread):
         cipher = Cipher(algorithms.AES(masterkey), modes.ECB())
         encryptor = cipher.encryptor()
         str2hash_encrypted = encryptor.update(str2hash.encode())
-        MAC2=hashlib.sha256((str2hash_encrypted)).hexdigest()
-        print("MAC2 is: "+MAC2)
-        if MAC2==MAC:
-            print("MAC OK, Session key accepted")
+        o_check2=hashlib.sha256((str2hash_encrypted)).hexdigest()
+        print("o_check2 is: "+o_check2)
+        if o_check2==o_check:
+            print("o_check OK, Session key accepted")
         else :
-            print("MAC NOK, Session Keu refused. connection closed")
+            print("o_check NOK, Session Keu refused. connection closed")
 
 
         #CHALLENGE RESPONSE PROTOCOL
         self.send_text("150")
+        print("sending of the Nonce : 150")
         resp=self.receive()
+        print("Nonce encrypted: "+resp.decode())
         f=Fernet(session_key)
         resp_decrypted=f.decrypt(resp)
-        print(resp_decrypted)
+        print(resp_decrypted.decode())
         if resp_decrypted.decode()=="150":
             print("CAR OPEN !!!")
         else:

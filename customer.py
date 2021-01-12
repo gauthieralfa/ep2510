@@ -1,5 +1,3 @@
-
-#!/usr/bin/env python3
 import random
 import socket
 import base64
@@ -116,7 +114,7 @@ def reservation(ip, port):
     sock.sendall(message_encrypted)
     ACK=sock.recv(1024)
     sock.sendall(signature)
-    print("O,S,N3,Signature")
+    print("O,S,N3 encrypted and Signature sent")
 
     ## Receives the response
     message=sock.recv(1024)
@@ -145,34 +143,38 @@ def reservation(ip, port):
 
     #Check if RNG3 is still the right Nonce
     if RNG3==lines[3].rstrip():
-        print("Success")
+        print("Success, N3 is the right value !")
     else:
-        print("FAIL")
+        print("FAIL, N3 is the wrong value")
 
     # Send of the Booking Information, and Id_Car
     BookingDetails="time=2h.location=KTH"
     signature=sign(Name+Service+BookingDetails,key)
     message=Name+"\n"+Service+"\n"+BookingDetails
+    print("C,S,Booking details: "+message)
     certificate_serviceprovider=get_certificate("cert_s")
     message_encrypted=encrypt(certificate_serviceprovider,message)
     sock.sendall(message_encrypted)
+    print("C,S,Booking details encrypted and sent")
     ACK=sock.recv(1024)
     sock.sendall(signature)
     sock.close()
 
 
 
-def recuperation(ip, port):
+def reception(ip, port):
     key=get_keys()
     ## Connection to the Service provider
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port)) #Connection with the Service Provider
-    sock.send("recuperation".encode())
+    sock.send("reception".encode())
     ACK=sock.recv(1024)
     sock.sendall("ok".encode())
     message_encrypted=sock.recv(1024)
+    print("Access Token, o_check and Session_key encrypted by keycar received from the Service Provider")
+    print("message encrypted received:"+str(message_encrypted))
     decrypted_message=decrypt(key,message_encrypted)
-    #dec=str(decrypted_message)
+    print("message decrypted received:"+str(decrypted_message))
     result=open(server_reference_path+"digitalkey.txt","wb")
     result.write(decrypted_message)
     result.close()
@@ -188,7 +190,9 @@ def open_the_car():
     result.close()
     message=lines[0]+lines[1].rstrip()
     sock2.send(message.encode())
+    print("sending Access token and o_check to the car")
     chall=sock2.recv(1024)
+    print("receives Nonce: "+chall.decode())
     result=open(server_reference_path+"digitalkey.txt","rb")
     lines=result.readlines()
     result.close()
@@ -196,6 +200,7 @@ def open_the_car():
     f=Fernet(session_key)
     resp=f.encrypt(chall)
     sock2.send(resp)
+    print("sending of Nonce encrypted with session_key: "+resp.decode())
 
 
 
@@ -206,9 +211,9 @@ if __name__ == "__main__":
     if inp=="reservation":
         client_thread = threading.Thread(
             target=reservation, args=(HOST, PORT))
-    elif inp=="recuperation":
+    elif inp=="reception":
         client_thread = threading.Thread(
-            target=recuperation, args=(HOST, PORT))
+            target=reception, args=(HOST, PORT))
     else:
         client_thread = threading.Thread(
             target=open_the_car)

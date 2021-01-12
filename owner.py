@@ -1,5 +1,3 @@
-
-#!/usr/bin/env python3
 import random
 import socket
 import base64
@@ -111,22 +109,10 @@ def registration(ip, port):
     signature=sign(m,key)
     print("signature is "+str(signature))
 
-    ## Creation of the encrypted message O,S,RNG1
+    ## Creation and sending of the encrypted message O,S,RNG1
     message=Name+"\n"+Service+"\n"+RNG1
     certificate_serviceprovider=get_certificate("cert_s")
     message_encrypted=encrypt(certificate_serviceprovider,message)
-    #fichier = open(server_reference_path+"registration.txt", "a")
-    #fichier.write(str(message_encrypted))
-    #fichier.write("\n"+str(signature))
-    #fichier.close()
-    #lenght=os.path.getsize(server_reference_path+"registration.txt")
-    #sock.send(str(lenght).encode())
-    #ACK=sock.recv(1024)
-    #with open(server_reference_path+"registration.txt", 'rb') as file_to_send:
-    #    for data in file_to_send:
-    #        sock.sendall(data)
-
-    ## Send of the encrypted message and signature
     sock.sendall(message_encrypted)
     ACK=sock.recv(1024)
     sock.sendall(signature)
@@ -159,18 +145,20 @@ def registration(ip, port):
 
     #Check if RNG1 is still the right Nonce
     if RNG1==lines[3].rstrip():
-        print("Success")
+        print("Success, N1 is the right value !")
     else:
-        print("FAIL")
+        print("FAIL, N1 is the wrong value")
 
     # Send of the Booking Information, and Id_Car
     BookingInformation="price=100.time=2h.location=KTH"
     IdCar="206"
     signature=sign(Name+Service+BookingInformation+IdCar,key)
     message=Name+"\n"+Service+"\n"+BookingInformation+"\n"+IdCar
+    print("C,S,Booking Information and IdCar are : "+message)
     certificate_serviceprovider=get_certificate("cert_s")
     message_encrypted=encrypt(certificate_serviceprovider,message)
     sock.sendall(message_encrypted)
+    print("C,S,Booking Information and IdCar are encrypted and sent")
     ACK=sock.recv(1024)
     sock.sendall(signature)
     sock.close()
@@ -209,9 +197,10 @@ def receives_session_key(ip,port):
     print("session key is: "+session_key)
     IdCar=lines[1].rstrip()
 
-    #Creation of the MAC
+    #Creation of the o_check
+    print("Creation of the o_check")
     str2hash=session_key+IdCar
-    print("str2hash: "+str(str2hash.encode()))
+    print("session_key and IdCar received : "+str(str2hash))
     file=open("car1/masterkeycar1.txt",'rb')
     masterkey=file.read()
 
@@ -219,12 +208,12 @@ def receives_session_key(ip,port):
     encryptor = cipher.encryptor()
     str2hash_encrypted = encryptor.update(str2hash.encode())
 
-    MAC=hashlib.sha256((str2hash_encrypted)).hexdigest()
-    print("MAC is: "+MAC)
+    o_check=hashlib.sha256((str2hash_encrypted)).hexdigest()
+    print("o_check is: "+o_check)
 
     #Send to the SP
-    MAC_encrypted=encrypt(certificate_serviceprovider,MAC)
-    sock.sendall(MAC_encrypted)
+    o_check_encrypted=encrypt(certificate_serviceprovider,o_check)
+    sock.sendall(o_check_encrypted)
     sock.close()
 
 
