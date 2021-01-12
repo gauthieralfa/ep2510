@@ -1,5 +1,11 @@
 # Implementation of a Shared car Protocol 
 
+
+I have used 3 python libraries :  
+-   pyopenssl for asymetric cryptography and signatures.
+-   Fernet for symmetric cryptography (session key, masterkey and car key). 
+-   Hazmat for symmetric cryptography with ECB (mandatory in my 4th step in the aim to calculate the same "MAC" again with the maserkey. This key is not to encrypt data so ECB is not a vulnerability here). 
+ 
 ### Step 1 : Registration 
 
 Launch the server ServiceProvider.py and car1.py on 2 different terminals with : 
