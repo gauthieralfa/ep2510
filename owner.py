@@ -92,7 +92,8 @@ def decrypt(key,message):
     return data0
 
 def registration(ip, port):
-
+    time = input("booking time ? ")
+    location = input("Where ? ")
     # Generation of the keys
     key=generate_keys() #Generation of the keys
     cert=create_certificate(key) #Creattion of the certificate for public keys
@@ -104,26 +105,28 @@ def registration(ip, port):
     ACK=sock.recv(1024)
 
     ## Creation of the Signature of O,S,RNG1
+    print("m is O,S,N1,Signature")
+    print("N1 is "+ RNG1)
     m=Name+Service+RNG1
     print("m is "+m)
     signature=sign(m,key)
-    print("signature is "+str(signature))
+    print("m signed and sent")
 
     ## Creation and sending of the encrypted message O,S,RNG1
     message=Name+"\n"+Service+"\n"+RNG1
     certificate_serviceprovider=get_certificate("cert_s")
     message_encrypted=encrypt(certificate_serviceprovider,message)
     sock.sendall(message_encrypted)
+    print("m encrypted with pubkey of Service Provider and sent")
     ACK=sock.recv(1024)
     sock.sendall(signature)
-    print("O,S,N1,Signature")
 
     ## Receives the response
     message=sock.recv(1024)
     sock.sendall("ok".encode())
     signature2=sock.recv(1024)
 
-    ## Decrypt and stock in a file text
+    ## Decrypt and save it in a file text
     decrypted_message=decrypt(key,message)
     dec=str(decrypted_message)
     result=open(server_reference_path+"message_decrypted.txt","wb")
@@ -137,9 +140,9 @@ def registration(ip, port):
     result.close()
 
     #Check the signature with the message decrypted
-    print("vérification de la signature")
     m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()+lines[3].rstrip()
-    print("m of signature is: "+m)
+    print("m decrypted is : "+m)
+    print("check of the signature")
     res=verifsign(certificate_serviceprovider,signature2,m)
     sock.sendall("OK".encode())
 
@@ -150,7 +153,8 @@ def registration(ip, port):
         print("FAIL, N1 is the wrong value")
 
     # Send of the Booking Information, and Id_Car
-    BookingInformation="price=100.time=2h.location=KTH"
+    BookingInformation="time="+time+".location="+location
+    #BookingInformation="price=100.time=2h.location=KTH"
     IdCar="206"
     signature=sign(Name+Service+BookingInformation+IdCar,key)
     message=Name+"\n"+Service+"\n"+BookingInformation+"\n"+IdCar
@@ -161,6 +165,7 @@ def registration(ip, port):
     print("C,S,Booking Information and IdCar are encrypted and sent")
     ACK=sock.recv(1024)
     sock.sendall(signature)
+    print("signature is: "+str(signature))
     sock.close()
 
 def receives_session_key(ip,port):
@@ -189,18 +194,18 @@ def receives_session_key(ip,port):
 
     #Check the signature with the message decrypted
     certificate_serviceprovider=get_certificate("cert_s")
-    print("vérification de la signature")
+    print("check of the signature...")
     m=lines[0].rstrip()+lines[1].rstrip()
     print("m of signature is: "+m)
     res=verifsign(certificate_serviceprovider,signature,m)
     session_key=lines[0].rstrip()
-    print("session key is: "+session_key)
+    print("session key received is: "+session_key)
     IdCar=lines[1].rstrip()
 
     #Creation of the o_check
     print("Creation of the o_check")
     str2hash=session_key+IdCar
-    print("session_key and IdCar received : "+str(str2hash))
+    #print("session_key and IdCar received : "+str(str2hash))
     file=open("car1/masterkeycar1.txt",'rb')
     masterkey=file.read()
 
@@ -213,6 +218,7 @@ def receives_session_key(ip,port):
 
     #Send to the SP
     o_check_encrypted=encrypt(certificate_serviceprovider,o_check)
+    print("o_check encrypted by service provider public key sent !")
     sock.sendall(o_check_encrypted)
     sock.close()
 

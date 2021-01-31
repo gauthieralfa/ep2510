@@ -159,7 +159,7 @@ class ClientThread(threading.Thread):
         #Verification of the signature
         print("vérification de la signature")
         m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()
-        print("m is "+m)
+        print("m decrypted is "+m)
         res=verifsign(certificate_o,signature,m)
 
         #S,O,N2,N1 and signature sent
@@ -195,15 +195,16 @@ class ClientThread(threading.Thread):
         result=open(server_reference_path+"message_decrypted.txt","r")
         lines=result.readlines()
         result.close()
-        print("vérification de la signature")
+        print("check of the signature")
         m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()+lines[3].rstrip()
         res=verifsign(certificate_o,signature,m)
         BookingInformation=lines[2].rstrip()
         IdCar=lines[3].rstrip() #IdCar saved
-        print("Booking Information saved")
+        print("Booking Information saved: "+BookingInformation)
+        print("Id Car saved: "+IdCar)
         message=self.receive()
         time.sleep(5)
-        print((message))
+        #print((message))
         return certificate_o
         self.close()
 
@@ -237,7 +238,7 @@ class ClientThread(threading.Thread):
         RNG4=str(rng)
         RNG3=lines[2].rstrip()
         m=Name+Customer+RNG4+RNG3
-        print("m of signature is: "+m)
+        #print("m of signature is: "+m)
         signature2=sign(m,key)
         message=Name+"\n"+Customer+"\n"+RNG4+"\n"+RNG3
         print("S,C,N4,N3 send: "+message)
@@ -265,10 +266,10 @@ class ClientThread(threading.Thread):
         result.close()
         print("vérification de la signature")
         m=lines[0].rstrip()+lines[1].rstrip()+lines[2].rstrip()
-        print("signature is "+m)
+        print("signature data are "+m)
         res=verifsign(certificate_c,signature,m)
         BookingDetails=lines[2].rstrip()
-        IdCar="206"
+        IdCar="206" #We assume it has searched it in the database after a match
         print("Booking Details are : "+BookingDetails)
         self.close()
         ts="1"
@@ -302,6 +303,7 @@ class ClientThread(threading.Thread):
         lines=file.readlines()
         session_key=lines[2].rstrip()
         IdCar=lines[0].rstrip()
+        #BookingDetails=lines[3].rstrip()
         certificate_o=get_certificate("cert_o")
         message=session_key+IdCar
         signature=sign(message,key)
@@ -316,7 +318,7 @@ class ClientThread(threading.Thread):
         #Receives o_check
         o_check_encrypted=self.receive()
         o_check=decrypt(key,o_check_encrypted).decode()
-        print("o_check is: "+o_check)
+        print("o_check received decrypted is: "+o_check)
         file=open("service_provider/customer1",'a')
         file.write("\n"+o_check)
         file.close()
@@ -346,7 +348,7 @@ class ClientThread(threading.Thread):
         session_key=lines[2].rstrip()
         access_token=lines[1].rstrip()
         o_check=lines[3]
-        print("Access token is: "+access_token)
+        #print("Access token is: "+access_token)
         message=access_token+"\n"+o_check+"\n"+session_key
         encrypted_message=encrypt(certificate_c,message)
         print("Access Token, o_check and Session_key encrypted by keycar sent to the customer !")

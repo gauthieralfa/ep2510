@@ -91,6 +91,8 @@ def decrypt(key,message):
     return data
 
 def reservation(ip, port):
+    time = input("booking time ? ")
+    location = input("Where ? ")
     # Generation of the keys
     key=generate_keys() #Generation of the keys
     cert=create_certificate(key) #Creattion of the certificate for public keys
@@ -105,7 +107,7 @@ def reservation(ip, port):
     m=Name+Service+RNG3
     print("m is "+m)
     signature=sign(m,key)
-    print("signature is "+str(signature))
+    #print("signature is "+str(signature))
 
     ## Creation of the encrypted message O,S,RNG1
     message=Name+"\n"+Service+"\n"+RNG3
@@ -148,7 +150,7 @@ def reservation(ip, port):
         print("FAIL, N3 is the wrong value")
 
     # Send of the Booking Information, and Id_Car
-    BookingDetails="time=2h.location=KTH"
+    BookingDetails="time="+time+".location="+location
     signature=sign(Name+Service+BookingDetails,key)
     message=Name+"\n"+Service+"\n"+BookingDetails
     print("C,S,Booking details: "+message)
@@ -172,9 +174,9 @@ def reception(ip, port):
     sock.sendall("ok".encode())
     message_encrypted=sock.recv(1024)
     print("Access Token, o_check and Session_key encrypted by keycar received from the Service Provider")
-    print("message encrypted received:"+str(message_encrypted))
+    #print("message encrypted received:"+str(message_encrypted))
     decrypted_message=decrypt(key,message_encrypted)
-    print("message decrypted received:"+str(decrypted_message))
+    print("Access Token, o_check and Session_key are: "+str(decrypted_message))
     result=open(server_reference_path+"digitalkey.txt","wb")
     result.write(decrypted_message)
     result.close()

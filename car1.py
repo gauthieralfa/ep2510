@@ -166,7 +166,7 @@ class ClientThread(threading.Thread):
         encryptor = cipher.encryptor()
         str2hash_encrypted = encryptor.update(str2hash.encode())
         o_check2=hashlib.sha256((str2hash_encrypted)).hexdigest()
-        print("o_check2 calculated (session_key+IdCar) enc by masterkey is: "+o_check2)
+        print("o_check2 calculated (session_key+IdCar+BookingDetails) enc by masterkey is: "+o_check2)
         if o_check2==o_check:
             print("o_check match OK, Session key accepted")
         else :
@@ -211,7 +211,7 @@ class ClientThread(threading.Thread):
         print("Nonce encrypted: "+resp.decode())
         f=Fernet(session_key)
         resp_decrypted=f.decrypt(resp)
-        print(resp_decrypted.decode())
+        print("Nonce decrypted: "+resp_decrypted.decode())
         if resp_decrypted.decode()=="150":
             print("CAR OPEN !!!")
         else:
